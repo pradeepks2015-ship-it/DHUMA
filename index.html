@@ -146,7 +146,23 @@ body{font-family:"Noto Sans Devanagari",sans-serif;background:var(--bg);color:va
 .abtn-rmk{background:rgba(255,140,66,.15);color:var(--orange);border:1px solid rgba(255,140,66,.25);}
 .cc-info{font-size:10px;margin-top:4px;padding-top:4px;border-top:1px solid var(--border);}
 .cc-rem{font-size:10px;color:var(--muted);font-style:italic;margin-top:3px;}
-.cc-updby{font-size:10px;color:#90b8e0;margin-top:3px;font-weight:600;}
+/* REMARKS HISTORY */
+.rmk-history{background:var(--bg);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden;}
+.rmk-hist-hdr{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:8px 11px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.rmk-hist-count{background:rgba(255,140,66,.2);color:var(--orange);border-radius:10px;padding:1px 7px;font-size:10px;}
+.rmk-hist-item{padding:8px 11px;border-bottom:1px solid rgba(26,53,80,.4);font-size:11px;}
+.rmk-hist-item:last-child{border-bottom:none;}
+.rmk-hist-text{color:var(--text);margin-bottom:3px;line-height:1.4;}
+.rmk-hist-meta{font-size:9px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;}
+.rmk-hist-by{color:var(--orange);font-weight:600;}
+.rmk-hist-time{color:#4a6a8a;}
+.rmk-hist-empty{padding:12px 11px;font-size:11px;color:var(--muted);font-style:italic;}
+.cc-rmk-list{margin-top:5px;padding-top:5px;border-top:1px solid var(--border);}
+.cc-rmk-item{font-size:10px;padding:3px 0;display:flex;flex-direction:column;gap:1px;border-bottom:1px dashed rgba(30,48,80,.4);margin-bottom:2px;}
+.cc-rmk-item:last-child{border-bottom:none;margin-bottom:0;}
+.cc-rmk-text{color:var(--muted);font-style:italic;}
+.cc-rmk-meta{font-size:9px;color:#3a5a78;}
+.cc-updby{font-size:10px;color:#90b8e0;margin-top:4px;font-weight:500;line-height:1.7;border-top:1px dashed rgba(30,48,80,.5);padding-top:4px;}
 .empty{text-align:center;padding:48px 20px;}
 .empty-ico{font-size:42px;margin-bottom:10px;}
 .empty-t{font-size:15px;font-weight:600;color:var(--muted);margin-bottom:5px;}
@@ -461,7 +477,14 @@ body{font-family:"Noto Sans Devanagari",sans-serif;background:var(--bg);color:va
       <label>भुगतान तिथि</label>
       <input type="date" class="fi" id="rmk-paydate">
     </div>
-    <div class="fg"><label>रिमार्क / टिप्पणी</label>
+    <div class="rmk-history" id="rmk-history-box">
+      <div class="rmk-hist-hdr">
+        <span>📋 पिछले रिमार्क</span>
+        <span class="rmk-hist-count" id="rmk-hist-count">0/4</span>
+      </div>
+      <div id="rmk-hist-list"><div class="rmk-hist-empty">अभी कोई रिमार्क नहीं</div></div>
+    </div>
+    <div class="fg"><label>&#9999; नया रिमार्क जोड़ें <span style="font-size:9px;color:var(--muted);">(खाली छोड़ें अगर सिर्फ स्थिति बदलनी हो)</span></label>
       <textarea class="fta" id="rmk-text" placeholder="जैसे: घर पर नहीं मिले..."></textarea>
     </div>
     <div class="mfooter">
@@ -890,8 +913,23 @@ function renderListWith(data){
           (x.lastPayDate?" ("+esc(x.lastPayDate)+")":"")+"</span>":"")+
         (x.paydate?"<span style='color:var(--green);margin-left:8px;'>💰 वसूल: "+esc(x.paydate)+"</span>":"")+
       "</div>"+
-      (x.remarks?"<div class='cc-rem'>💬 "+esc(x.remarks)+"</div>":"")+
-      (x.updatedBy?"<div class='cc-updby'>🔄 "+esc(x.updatedBy)+"</div>":"")+
+      (function(){
+        var arr=x.remarksArr||[];
+        if(!arr.length) return x.remarks?"<div class='cc-rem'>💬 "+esc(x.remarks)+"</div>":"";
+        var html="<div class='cc-rmk-list'>";
+        arr.slice().reverse().forEach(function(r){
+          html+="<div class='cc-rmk-item'>"+
+            "<span class='cc-rmk-text'>💬 "+esc(r.text)+"</span>"+
+            "<span class='cc-rmk-meta'><span style='color:var(--orange);'>— "+esc(r.by)+"</span> <span style='color:#4a6a8a;'>"+esc(r.at)+"</span></span>"+
+          "</div>";
+        });
+        html+="</div>";
+        return html;
+      })()+
+      "<div class='cc-updby'>"+
+        (x.uploadedBy?"📤 अपलोड: <b>"+esc(x.uploadedBy)+"</b> • "+esc(x.uploadedAt||""):"")+
+        (x.updatedBy&&x.updatedBy!==x.uploadedBy?"&nbsp;&nbsp;🔄 अपडेट: <b>"+esc(x.updatedBy)+"</b> • "+esc(x.updatedAt||""):"")+
+      "</div>"+
     "</div>";
   }).join("");
 }
@@ -927,13 +965,33 @@ function clearList(){
 function openRmkModal(idx){
   var d=cGet(activeHQ,activeCat);
   var x=d[idx]; if(!x)return;
+  if(!x.remarksArr) x.remarksArr=[];
+  if(x.remarksArr.length===0&&x.remarks&&x.remarks.trim()){
+    x.remarksArr.push({text:x.remarks.trim(),by:x.updatedBy||x.uploadedBy||"—",at:x.updatedAt||x.uploadedAt||""});
+  }
   document.getElementById("rmk-key").value=idx;
   document.getElementById("rmk-name").textContent=x.name;
   document.getElementById("rmk-amt").textContent="₹"+Number(x.amount).toLocaleString("hi-IN")+" बकाया";
   document.getElementById("rmk-acc").textContent="Consumer No: "+x.acc;
-  document.getElementById("rmk-text").value=x.remarks||"";
+  document.getElementById("rmk-text").value="";
   document.getElementById("rmk-paydate").value=x.paydate||"";
   setRmkStatus(x.status||"pending");
+  var arr=x.remarksArr||[];
+  document.getElementById("rmk-hist-count").textContent=arr.length+"/4";
+  var histList=document.getElementById("rmk-hist-list");
+  if(!arr.length){
+    histList.innerHTML="<div class='rmk-hist-empty'>अभी कोई रिमार्क नहीं</div>";
+  } else {
+    histList.innerHTML=arr.slice().reverse().map(function(r){
+      return "<div class='rmk-hist-item'>"+
+        "<div class='rmk-hist-text'>"+esc(r.text)+"</div>"+
+        "<div class='rmk-hist-meta'>"+
+          "<span class='rmk-hist-by'>— "+esc(r.by)+"</span>"+
+          "<span class='rmk-hist-time'>🕐 "+esc(r.at)+"</span>"+
+        "</div>"+
+      "</div>";
+    }).join("");
+  }
   document.getElementById("rmk-overlay").classList.add("open");
 }
 function closeRmkModal(){document.getElementById("rmk-overlay").classList.remove("open");}
@@ -950,16 +1008,25 @@ function saveRmk(){
   var idx=parseInt(document.getElementById("rmk-key").value);
   var d=cGet(activeHQ,activeCat);
   if(!d[idx])return;
+  var now=new Date();
+  var dtStr=now.toLocaleDateString("hi-IN")+" "+now.toLocaleTimeString("hi-IN",{hour:"2-digit",minute:"2-digit"});
   d[idx].status=rmkStatus;
-  d[idx].remarks=document.getElementById("rmk-text").value.trim();
   if(rmkStatus==="paid")
-    d[idx].paydate=document.getElementById("rmk-paydate").value||new Date().toLocaleDateString("hi-IN");
+    d[idx].paydate=document.getElementById("rmk-paydate").value||now.toLocaleDateString("hi-IN");
   d[idx].updatedBy=CU.name;
-  d[idx].updatedAt=new Date().toLocaleString("hi-IN");
+  d[idx].updatedAt=dtStr;
+  var newText=document.getElementById("rmk-text").value.trim();
+  if(newText){
+    if(!d[idx].remarksArr) d[idx].remarksArr=[];
+    d[idx].remarksArr.push({text:newText,by:CU.name,at:dtStr});
+    if(d[idx].remarksArr.length>4) d[idx].remarksArr.shift();
+    d[idx].remarks=newText;
+  }
   cSet(activeHQ,activeCat,d);
   closeRmkModal();
   renderSummaryWith(d); renderListWith(d);
-  toast("✅ रिमार्क सेव!","ok");
+  var msg=newText?"✅ रिमार्क सेव! ("+(d[idx].remarksArr?d[idx].remarksArr.length:1)+"/4)":"✅ स्थिति अपडेट!";
+  toast(msg,"ok");
   fbSet(activeHQ,activeCat,d,null);
 }
 
